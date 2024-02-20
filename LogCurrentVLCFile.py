@@ -68,8 +68,13 @@ class WindowHandlers:
     return app.top_window()
 
 class EditController:
+  def _assertStickyIsSelected(target):
+    target.set_focus()
+  
   def clearAllText(edit):
+    EditController._assertStickyIsSelected(edit)
     edit.type_keys("^a")
+    EditController._assertStickyIsSelected(edit)
     edit.type_keys("{BACKSPACE}")
 
   def setEditText(edit, text, doPaste=False):
@@ -79,13 +84,14 @@ class EditController:
     if doPaste:
       hold = pyperclip.paste()
       pyperclip.copy(text)
+      EditController._assertStickyIsSelected(edit)
       edit.type_keys("^v")
       time.sleep(0.3)
       pyperclip.copy(hold)
       return
       
+    EditController._assertStickyIsSelected(edit)
     edit.type_keys(text.replace("\n", "{ENTER}}"))
-
 
 
 def main():
