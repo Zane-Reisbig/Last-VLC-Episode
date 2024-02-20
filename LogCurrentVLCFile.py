@@ -32,8 +32,17 @@ class LockFile:
     os.remove(LOCK_FILE_NAME)
 
   def killOldInstance():
-    if(not LockFile.checkIfLockFileExists()): return
-    psutil.Process(LockFile.getOldPID()).terminate()
+    if(not LockFile.checkIfLockFileExists()):
+        return
+    else:
+      if LockFile.getOldPID() == os.getpid():
+        return
+      
+    try:
+      psutil.Process(LockFile.getOldPID()).terminate()
+    except:
+      pass
+
 
 class WindowHandlers:
   def getVLCHandle():
