@@ -266,8 +266,6 @@ def main():
     time.sleep(0.5)
 
 
-
-
 def configLoadDelegate(configDict):
   global EPISODE_OUT_FOLDER, WATCH_FOLDERS
   EPISODE_OUT_FOLDER = configDict["EPISODE_OUT_FOLDER"]
@@ -282,7 +280,6 @@ if Config.exists(CONFIG_FILE_NAME):
 else:
   Config.createDefault(CONFIG_FILE_NAME, DEFAULT_CONFIG)
   Config.load(CONFIG_FILE_NAME, configLoadDelegate)
-
 
 atexit.register(LockFile.clearLockFile)
 LockFile.killOldInstance()
