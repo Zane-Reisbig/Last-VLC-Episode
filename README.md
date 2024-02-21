@@ -1,4 +1,4 @@
-# Last Episode
+# VLC Episodes
 ---
 Small python app that should have been a CPP .exe.</br>
 Add your watch folder prefixes and it will log the last video watched to a (Windows) Sticky Note.</br>
