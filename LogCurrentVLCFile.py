@@ -1,16 +1,47 @@
 import pywinauto
-import win32gui
-import win32process
-import win32api
-import win32con
 import psutil
 import os
 import pyperclip
 import time
 import atexit
 
+import win32gui
+import win32process
+import win32api
+import win32con
+import win32com.client
 LOCK_FILE_NAME = os.getcwd() + "\\.loggerlock"
+EPISODE_OUT_FOLDER = "Desktop"
+WATCH_FOLDERS = [
+  "E:\\Local Media",
+  "F:\\Local Media",
+]
 
+class EpisodeHelper():
+  watchFolders = None
+  
+  def __init__(self, _watchFolders):
+    self.watchFolders = _watchFolders
+  
+  def tryGetNextEpisode(self, fileName) -> str | None:
+    fileName = os.path.basename(fileName)
+    found = False
+    nextFile = None      
+    for watchFolder in self.watchFolders:
+      for path, _, files in os.walk(watchFolder):
+        if nextFile != None: break
+
+        for file in files:
+          if found == True:
+            nextFile = path + "\\" +file
+            break
+          
+          if file == fileName:
+            found = True
+    
+    return nextFile
+
+# Static
 class LockFile:
   def createFileLock():
     with open(LOCK_FILE_NAME, "w") as lockfile:
@@ -44,7 +75,12 @@ class LockFile:
       pass
 
 
+
+
+# Static
 class WindowHandlers:
+  _shell = win32com.client.Dispatch("WScript.Shell")
+
   def getVLCHandle():
     processes = psutil.process_iter()
     return [item for item in processes if item.name() == "vlc.exe"][0]
@@ -69,7 +105,6 @@ class WindowHandlers:
   def isWindowFullscreen(hwnd):
     # If pywin32 had getWindowInfo id be a happy man
     
-    
     # This might not work :/
     windowRect = win32gui.GetClientRect(hwnd)
     if (
@@ -79,7 +114,6 @@ class WindowHandlers:
       and windowRect[3] == win32api.GetSystemMetrics(win32con.SM_CYSCREEN)
     ): return True
 
-
     # This ALSO might not work
     if (
       # Logical Operator Nonsense
@@ -88,6 +122,29 @@ class WindowHandlers:
     
     return False
 
+  def createShortcut(sourcePath, placeAt="Desktop", name=None) -> str:
+    linkName = os.path.basename(placeAt).split(".")[0] if name == None else name
+    if placeAt == "Desktop":
+      linkName = f"{WindowHandlers._shell.SpecialFolders('Desktop')}\\{linkName}.lnk"
+    else:
+      linkName = f"{placeAt}\\{linkName}.lnk"
+      
+    short = WindowHandlers._shell.CreateShortcut(linkName)
+    short.TargetPath = sourcePath
+    short.Save()
+
+    return linkName
+  
+  def tryRemoveShortcut(sourcePath) -> bool:
+    if not os.path.exists(sourcePath):
+      return False
+    
+    os.remove(sourcePath)
+    return True
+
+
+
+# Static
 class EditController:
   def _assertStickyIsSelected(target):
     target.set_focus()
@@ -115,16 +172,11 @@ class EditController:
     edit.type_keys(text.replace("\n", "{ENTER}}"))
 
 
+
+
 def main():
-  atexit.register(LockFile.clearLockFile)
-  LockFile.killOldInstance()
-  LockFile.createFileLock()
   
-  watchFolderPrefix = [
-    "E:\\Local Media",
-    "F:\\Local Media",
-  ]
-  
+  epHelper = EpisodeHelper(WATCH_FOLDERS)
   sticky = WindowHandlers.getStickyWindow()
   vlc = WindowHandlers.getVLCHandle()
   lastWindowHandle = None
@@ -156,8 +208,14 @@ def main():
     
     for file in hold:
       if lastFiles != hold or isDev:
-        for prefix in watchFolderPrefix:
+        for prefix in WATCH_FOLDERS:
           if prefix in file.path:
+            WindowHandlers.createShortcut(file.path, EPISODE_OUT_FOLDER, "Current Episode")
+
+            nextEp = epHelper.tryGetNextEpisode(file.path)  
+            if nextEp != None:
+              WindowHandlers.createShortcut(nextEp, EPISODE_OUT_FOLDER, "Next Episode")
+
             outText += os.path.basename(file.path)
             outText += f"\n{file.path}"
             if isDev:
@@ -171,6 +229,16 @@ def main():
     lastFiles = hold
     outText = "[VLC LAST MEDIA]\n"
     time.sleep(0.5)
-        
-main()
+
+
+
+while True:
+  try:
+    atexit.register(LockFile.clearLockFile)
+    LockFile.killOldInstance()
+    LockFile.createFileLock()
+    main()
+  except:
+    time.sleep(10)      
+    
   
