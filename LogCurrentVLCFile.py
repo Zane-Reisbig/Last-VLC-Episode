@@ -270,11 +270,6 @@ def main():
 
 def configLoadDelegate(configDict):
   global EPISODE_OUT_FOLDER, WATCH_FOLDERS
-  # EPISODE_OUT_FOLDER = "Desktop"
-  # WATCH_FOLDERS = [
-  #   "E:\\Local Media",
-  #   "F:\\Local Media",
-  # ]
   EPISODE_OUT_FOLDER = configDict["EPISODE_OUT_FOLDER"]
   
   for n in range(int(configDict["WATCH_FOLDER_AMOUNT"])):
