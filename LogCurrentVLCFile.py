@@ -1,13 +1,13 @@
 import pywinauto
-import psutil
 import win32gui
-import os
 import win32process
+import win32api
+import win32con
+import psutil
+import os
 import pyperclip
 import time
 import atexit
-
-from ctypes import *
 
 LOCK_FILE_NAME = os.getcwd() + "\\.loggerlock"
 
@@ -47,7 +47,6 @@ class LockFile:
 class WindowHandlers:
   def getVLCHandle():
     processes = psutil.process_iter()
-
     return [item for item in processes if item.name() == "vlc.exe"][0]
 
   def getCurrentVLCFile(vlc):
@@ -66,6 +65,28 @@ class WindowHandlers:
     app:pywinauto.Application = pywinauto.Application(backend="uia").connect(process=pid)
 
     return app.top_window()
+
+  def isWindowFullscreen(hwnd):
+    # If pywin32 had getWindowInfo id be a happy man
+    
+    
+    # This might not work :/
+    windowRect = win32gui.GetClientRect(hwnd)
+    if (
+      windowRect[0] == 0
+      and windowRect[1] == 0 
+      and windowRect[2] == win32api.GetSystemMetrics(win32con.SM_CXSCREEN) 
+      and windowRect[3] == win32api.GetSystemMetrics(win32con.SM_CYSCREEN)
+    ): return True
+
+
+    # This ALSO might not work
+    if (
+      # Logical Operator Nonsense
+      win32gui.GetWindowLong(hwnd, win32con.GWL_STYLE) & win32con.WS_POPUP != 0
+    ): return True
+    
+    return False
 
 class EditController:
   def _assertStickyIsSelected(target):
@@ -114,6 +135,10 @@ def main():
   isDev = False
   d_iter = 1
   while True:
+    if WindowHandlers.isWindowFullscreen(WindowHandlers.getCurrentWindowHandle()):
+      time.sleep(60)
+      continue
+    
     try:
       vlc = WindowHandlers.getVLCHandle()
       sticky = WindowHandlers.getStickyWindow()
