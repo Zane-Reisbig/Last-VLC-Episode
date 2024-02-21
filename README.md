@@ -1,12 +1,8 @@
-# Last Episode
+# VLC Episode Helper
 ---
-Small python app that should have been a CPP .exe. Add your watch folder prefixes and it will log the last video watched on to your desktop.
-
-### todo:
-- Config File
-- ?Desktop Shortcut?
-    - ?Cur Episode?
-    - ?Prev Episode?
+Small python app that should have been a CPP .exe.</br>
+Add your watch folder prefixes and it will log the last video watched to a (Windows) Sticky Note.</br>
+Adds shortcuts to your desktop for the current and previous episode.</br>
 
 ### Depends
 - Python 3.10+
