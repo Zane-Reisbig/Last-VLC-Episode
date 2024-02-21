@@ -1,6 +1,7 @@
 import pywinauto
 import psutil
 import os
+import sys
 import pyperclip
 import time
 import atexit
@@ -10,6 +11,18 @@ import win32process
 import win32api
 import win32con
 import win32com.client
+
+import logging
+
+IS_DEV = True
+DO_ITER_UPDATE = False
+
+format = logging.Formatter("%(levelname)s | %(message)s")
+LOGGER = logging.getLogger()
+_logStream = logging.StreamHandler()
+_logStream.setFormatter(format)
+LOGGER.addHandler(_logStream)
+LOGGER.setLevel("DEBUG")
 
 LOCK_FILE_NAME = os.getcwd() + "\\.loggerlock"
 CONFIG_FILE_NAME = os.getcwd() + "\\config.ini"
@@ -204,11 +217,16 @@ class EditController:
       
     EditController._assertStickyIsSelected(edit)
     edit.type_keys(text.replace("\n", "{ENTER}}"))
+    
+    # This son of a gun doesnt want to work well
+    EditController.setEditText(edit, text, doPaste)
+    EditController.setEditText(edit, text, doPaste)
 
 
 
 
 def main():
+  LOGGER.debug("Loading Main")
   
   epHelper = EpisodeHelper(WATCH_FOLDERS)
   sticky = WindowHandlers.getStickyWindow()
@@ -216,52 +234,75 @@ def main():
   lastWindowHandle = None
   outText = "[VLC LAST MEDIA]\n"
   
-  lastFiles = []
+  lastFile = []
   
-  isDev = False
   d_iter = 1
+  LOGGER.debug("Loaded Main, starting main loop...")
   while True:
     if WindowHandlers.isWindowFullscreen(WindowHandlers.getCurrentWindowHandle()):
+      LOGGER.debug("Full Screen Window Detected, waiting...")
       time.sleep(60)
       continue
     
     try:
       vlc = WindowHandlers.getVLCHandle()
       sticky = WindowHandlers.getStickyWindow()
+      LOGGER.debug("Got handles for iteration: %d", d_iter)
     except:
       pass
       
       # if they aint open, wait and try again
+      LOGGER.debug("Failed to get Handles, waiting...")
       time.sleep(5)
       continue
       
-    hold = []
+    hold = None
     
     for cur_file in vlc.open_files():
+      if hold != None: break
+      
       for prefix in WATCH_FOLDERS:
         if prefix in cur_file.path:
-          hold.append(cur_file)
+          hold = cur_file
+          break
     
-    for file in hold:
-      if lastFiles != hold or isDev:
-        WindowHandlers.createShortcut(file.path, EPISODE_OUT_FOLDER, "Current Episode")
+    # No file, not a problem
+    if hold == None:
+      LOGGER.debug("Failed to get any file from vlc")
+      time.sleep(5)
+      continue
+    
+    LOGGER.debug("Got file %s", hold.path)
+    if lastFile != hold or (IS_DEV and DO_ITER_UPDATE):
+      curShort = WindowHandlers.createShortcut(hold.path, EPISODE_OUT_FOLDER, "Current Episode")
+      LOGGER.debug("Shortcut for cur file created at %s", curShort)
 
-        nextEp = epHelper.tryGetNextEpisode(file.path)  
-        if nextEp != None:
-          WindowHandlers.createShortcut(nextEp, EPISODE_OUT_FOLDER, "Next Episode")
+      nextEp = epHelper.tryGetNextEpisode(hold.path)  
+      if nextEp != None:
+        nextShort = WindowHandlers.createShortcut(nextEp, EPISODE_OUT_FOLDER, "Next Episode")
+        LOGGER.debug("Shortcut for next file created at %s", nextShort)
 
-        outText += os.path.basename(file.path)
-        outText += f"\n{file.path}"
-        if isDev:
-          outText += f"\n[DEBUG ITER {d_iter}]"
-        lastWindowHandle = WindowHandlers.getCurrentWindowHandle()
-        sticky.set_focus()
-        EditController.setEditText(sticky, outText + "\n", doPaste=True)
-        win32gui.SetForegroundWindow(lastWindowHandle)
+      outText += os.path.basename(hold.path)
+      outText += f"\n{hold.path}"
+      
+      if IS_DEV and DO_ITER_UPDATE:
+        outText += f"\n[DEBUG ITER {d_iter}]"
+      
+      lastWindowHandle = WindowHandlers.getCurrentWindowHandle()
+      sticky.set_focus()
+      
+      EditController.setEditText(sticky, outText + "\n", doPaste=True)
+      LOGGER.debug("Edit Text Set")
+      
+      win32gui.SetForegroundWindow(lastWindowHandle)
+    else:
+      # Wait for a new file
+      time.sleep(5)
     
     d_iter += 1
-    lastFiles = hold
+    lastFile = hold
     outText = "[VLC LAST MEDIA]\n"
+    LOGGER.debug("Loop Complete, sleeping")
     time.sleep(0.5)
 
 
@@ -275,7 +316,12 @@ def configLoadDelegate(configDict):
 
 
 if Config.exists(CONFIG_FILE_NAME):
-  Config.load(CONFIG_FILE_NAME, configLoadDelegate)
+  try:
+    Config.load(CONFIG_FILE_NAME, configLoadDelegate)
+  except:
+    Config.createDefault(CONFIG_FILE_NAME, DEFAULT_CONFIG)
+  finally:
+    Config.load(CONFIG_FILE_NAME, configLoadDelegate)
 else:
   Config.createDefault(CONFIG_FILE_NAME, DEFAULT_CONFIG)
   Config.load(CONFIG_FILE_NAME, configLoadDelegate)
