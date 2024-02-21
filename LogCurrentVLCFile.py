@@ -1,3 +1,4 @@
+from io import TextIOWrapper
 import pywinauto
 import psutil
 import os
@@ -10,12 +11,18 @@ import win32process
 import win32api
 import win32con
 import win32com.client
+
 LOCK_FILE_NAME = os.getcwd() + "\\.loggerlock"
-EPISODE_OUT_FOLDER = "Desktop"
-WATCH_FOLDERS = [
-  "E:\\Local Media",
-  "F:\\Local Media",
-]
+CONFIG_FILE_NAME = os.getcwd() + "\\config.ini"
+DEFAULT_CONFIG = str(
+  "EPISODE_OUT_FOLDER=Desktop\n" +
+  "WATCH_FOLDER_AMOUNT=2\n" +
+  "WATCH_FOLDER_1=E:\\Local Media\n" +
+  "WATCH_FOLDER_2=F:\\Local Media\n"
+)
+
+EPISODE_OUT_FOLDER = ""
+WATCH_FOLDERS = []
 
 class EpisodeHelper():
   watchFolders = None
@@ -40,6 +47,34 @@ class EpisodeHelper():
             found = True
     
     return nextFile
+
+# Static
+class Config:
+
+  def exists(configFilePath):
+    return os.path.exists(configFilePath)
+  
+  def load(configFilePath, loader, stripNewLines=True) -> bool:
+    lines = []
+    with open(configFilePath, "r") as configFile:
+      lines = configFile.readlines()
+   
+    if stripNewLines:
+      lines = [line.replace("\n", "") for line in lines]
+    
+    ourDict = {}
+    for item in lines:
+      splitIt = item.split("=")
+      ourDict.update({splitIt[0] : splitIt[1]})
+    
+    loader(ourDict)
+    
+    return True
+  
+  def createDefault(configFilePath, defaultConfig):
+    with open(configFilePath, "w") as configFile:
+      configFile.write(defaultConfig)
+    
 
 # Static
 class LockFile:
@@ -204,26 +239,26 @@ def main():
     hold = []
     
     for cur_file in vlc.open_files():
-      hold.append(cur_file)
+      for prefix in WATCH_FOLDERS:
+        if prefix in cur_file.path:
+          hold.append(cur_file)
     
     for file in hold:
       if lastFiles != hold or isDev:
-        for prefix in WATCH_FOLDERS:
-          if prefix in file.path:
-            WindowHandlers.createShortcut(file.path, EPISODE_OUT_FOLDER, "Current Episode")
+        WindowHandlers.createShortcut(file.path, EPISODE_OUT_FOLDER, "Current Episode")
 
-            nextEp = epHelper.tryGetNextEpisode(file.path)  
-            if nextEp != None:
-              WindowHandlers.createShortcut(nextEp, EPISODE_OUT_FOLDER, "Next Episode")
+        nextEp = epHelper.tryGetNextEpisode(file.path)  
+        if nextEp != None:
+          WindowHandlers.createShortcut(nextEp, EPISODE_OUT_FOLDER, "Next Episode")
 
-            outText += os.path.basename(file.path)
-            outText += f"\n{file.path}"
-            if isDev:
-              outText += f"\n[DEBUG ITER {d_iter}]"
-            lastWindowHandle = WindowHandlers.getCurrentWindowHandle()
-            sticky.set_focus()
-            EditController.setEditText(sticky, outText + "\n", doPaste=True)
-            win32gui.SetForegroundWindow(lastWindowHandle)
+        outText += os.path.basename(file.path)
+        outText += f"\n{file.path}"
+        if isDev:
+          outText += f"\n[DEBUG ITER {d_iter}]"
+        lastWindowHandle = WindowHandlers.getCurrentWindowHandle()
+        sticky.set_focus()
+        EditController.setEditText(sticky, outText + "\n", doPaste=True)
+        win32gui.SetForegroundWindow(lastWindowHandle)
     
     d_iter += 1
     lastFiles = hold
@@ -232,13 +267,32 @@ def main():
 
 
 
-while True:
-  try:
-    atexit.register(LockFile.clearLockFile)
-    LockFile.killOldInstance()
-    LockFile.createFileLock()
-    main()
-  except:
-    time.sleep(10)      
+
+def configLoadDelegate(configDict):
+  global EPISODE_OUT_FOLDER, WATCH_FOLDERS
+  # EPISODE_OUT_FOLDER = "Desktop"
+  # WATCH_FOLDERS = [
+  #   "E:\\Local Media",
+  #   "F:\\Local Media",
+  # ]
+  EPISODE_OUT_FOLDER = configDict["EPISODE_OUT_FOLDER"]
+  
+  for n in range(int(configDict["WATCH_FOLDER_AMOUNT"])):
+    WATCH_FOLDERS.append(configDict[f"WATCH_FOLDER_{n + 1}"])
+
+
+
+if Config.exists(CONFIG_FILE_NAME):
+  Config.load(CONFIG_FILE_NAME, configLoadDelegate)
+else:
+  Config.createDefault(CONFIG_FILE_NAME, DEFAULT_CONFIG)
+  Config.load(CONFIG_FILE_NAME, configLoadDelegate)
+
+
+atexit.register(LockFile.clearLockFile)
+LockFile.killOldInstance()
+LockFile.createFileLock()
+
+main()
     
   
